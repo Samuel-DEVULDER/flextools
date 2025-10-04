@@ -473,7 +473,9 @@ void floppy_info(t_floppy *floppy) {
  * @param floppy
  */
 void floppy_cat(t_floppy *floppy) {
-
+    int boot_track  = floppy->tracks[0].sectors[0].raw.data[5];
+    int boot_sector = floppy->tracks[0].sectors[0].raw.data[6];
+    
     char filename[13];
 
     printf("FILENAME EXT  SECTORS\tDATE\t TRACK,SECTOR\n");
@@ -497,10 +499,13 @@ void floppy_cat(t_floppy *floppy) {
             dir_get_filename_pretty(dir,filename);
             unsigned int file_sectors = bigendian_get(&dir->total_sector);
 
-            printf("%s\t  % 3d\t%02d/%02d/%02d\t%02d,%02d\n",
+            printf("%s\t  % 3d\t%02d/%02d/%02d%s\t%02d,%02d\n",
                     filename,
                     file_sectors,
                     dir->creation_day, dir->creation_month,dir->creation_year,
+		    dir->start_track==boot_track && 
+		    dir->start_sector==boot_sector ? "  boot"
+		                                   : "",
                     dir->start_track,dir->start_sector
                     );
 
