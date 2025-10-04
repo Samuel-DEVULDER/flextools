@@ -288,8 +288,7 @@ int floppy_guess_geometry(t_floppy *floppy,char *filename) {
     // t0s4 : --- missing
     // t0s5 : dir
     // t0s6 : dir
-    if ((count_sectors&-count_sectors)==count_sectors // power of two
-    && 10==sector.sir.max_sector
+    if (10==sector.sir.max_sector
     && (sector.sir.max_track==26 || sector.sir.max_track==13 ||
         sector.sir.max_track==7) // more or less hard-coded to fit rom-size
     && sector.sir.last_user_track==sector.sir.max_track
@@ -680,6 +679,11 @@ void floppy_add_file(t_floppy *floppy, char *filename) {
     sector = &floppy->tracks[current_track].sectors[current_sector-1];
 
     while(!feof(fp)) {
+	if(current_sector >= floppy->tracks_sectors
+	|| current_track  >= floppy->num_track) {
+	      fprintf(stderr,"Disk full !\n");
+	      exit(-3);
+	}
 
         num_sectors ++;
         bigendian_set(&sector->usr.sequence,num_sectors);
