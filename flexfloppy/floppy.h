@@ -21,6 +21,7 @@ typedef struct {
     int track0_sectors;         // number of sectors on track 0 (adding both sides)
     int tracks_sectors;         // number of sectors on other tracks (adding both sides)
     int track0_aligned;         // 1 if track0 and track>0 has the same length on disk image
+	int squale_rom;             // disk is a Apollo 7 Squale's ROM-Pack.
     t_track *tracks;
 } t_floppy;
 
