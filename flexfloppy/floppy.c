@@ -585,18 +585,18 @@ void floppy_extract(t_floppy *floppy, char *outdir) {
 
             if (current_track != dir->end_track) {
                 printf("Error , end track should be %d (was %d) !\n",dir->end_track,current_track);
-                return;
+                break;
             }
 
             if (current_sector != dir->end_sector) {
                 printf("Error , end sector should be %d (was %d) !\n",dir->end_sector,current_sector);
-                return;
+                break;
             }
 
             int dir_total_sector = bigendian_get(&dir->total_sector);
             if (total_sector != dir_total_sector) {
                 printf("Error , total sector should be %d (was %d) !\n",dir_total_sector,total_sector);
-                return;
+                break;
             }
 
             printf(" \t- %d sectors.\n",total_sector);
