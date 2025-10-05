@@ -61,25 +61,10 @@ void do_new(char *filename, int tracks, int sectors, char *label, int number) {
 }
 
 void do_newrom(char *filename, int tracks, int sectors, char *label, int number) {
-    int sector0 = sectors;
+    int sector0 = 5; // no more for squaleboot
     uint size = (sector0-2) + (tracks-1)*sectors;
     uint t = size;
-    t |= t>>1;
-    t |= t>>2;
-    t |= t>>4;
-    t |= t>>8;
-    t |= t>>16;
-    t ^= t>>1;
-    if(size > t) {
-	sector0 = 5;
-	while((size = (sector0-2) + (tracks-1)*sectors)>t && tracks>1) --tracks;
-	if(tracks==1)  {
-		fprintf(stderr, "Can't find proper track count to fill %u bytes.\n", t*256);
-		exit(-3);
-	}
-	while(size+1<=t) ++sector0,++size;
-	printf("Reduced to t=%d s0=%d\n", tracks, sector0, t*256);
-    }
+    t |= t>>1; t |= t>>2; t |= t>>4; t |= t>>8; t |= t>>16; ++t;
     floppy.track0_aligned = 0;
     floppy.squale_rom = 1;
     floppy.num_track = tracks;
@@ -91,7 +76,7 @@ void do_newrom(char *filename, int tracks, int sectors, char *label, int number)
     floppy_format(&floppy,label,number);
     floppy_export(&floppy,filename);
     floppy_release(&floppy);
-    printf("New rom %s created (%u bytes)\n",filename, size*256);
+    printf("New rom %s created (%u / %u bytes)\n",filename, size*256, t*256);
 }
 
 

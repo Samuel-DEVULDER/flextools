@@ -160,7 +160,7 @@ void floppy_format(t_floppy *floppy,char *label,int number) {
  * @param filename
  */
 void floppy_export(t_floppy *floppy,char *filename) {
-    int t = 0;
+    int t = 0, size=0;
 
     FILE *fp = fopen(filename,"wb");
     if (fp == NULL) {
@@ -170,16 +170,16 @@ void floppy_export(t_floppy *floppy,char *filename) {
 
     if(floppy->squale_rom) { // track 0 is special: only 3 sectors are used
         t_track *track = &floppy->tracks[t++];
-        fwrite(&track->sectors[0],SECTOR_SIZE,1,fp);
-        fwrite(&track->sectors[2],SECTOR_SIZE,1,fp);
-	for(int i=4; i<floppy->track0_sectors; ++i)
+        fwrite(&track->sectors[0],SECTOR_SIZE,1,fp); ++size;
+        fwrite(&track->sectors[2],SECTOR_SIZE,1,fp); ++size;
+	for(int i=4; i<floppy->track0_sectors; ++i,  ++size)
         fwrite(&track->sectors[i],SECTOR_SIZE,1,fp);
     }
 
     // TODO : track 0 must have the same size as other tracks
     for (;t<floppy->num_track;t ++) {
         t_track *track = &floppy->tracks[t];
-        fwrite(track->sectors,SECTOR_SIZE,track->num_sector,fp);
+        fwrite(track->sectors,SECTOR_SIZE,track->num_sector,fp); size += track->num_sector;
 
         // special case if track 0 has different size : add some empty sectors
         // so that all tracks have the same length in the .dsk file
@@ -188,6 +188,14 @@ void floppy_export(t_floppy *floppy,char *filename) {
                 fputc(0,fp);
         }
 
+    }
+    
+    if(floppy->squale_rom) {
+	// pad to power of two
+	while(size != (size & -size)) {
+	      for(int i=SECTOR_SIZE; i-- ; ) fputc(0xFF,fp);	   
+	      ++size;
+	}
     }
 
     fclose(fp);
@@ -682,24 +690,34 @@ void floppy_add_file(t_floppy *floppy, char *filename) {
     int num_sectors=0;
     int current_sector = dir->start_sector;
     int current_track = dir->start_track;
-    sector = &floppy->tracks[current_track].sectors[current_sector-1];	
-
-    while(!feof(fp)) {
+    
+    
+    while(1) {
+        uint8_t	buffer[SECTOR_USR_DATA_LENGTH];
+    
 	if(current_sector > floppy->tracks_sectors
 	|| current_track  >= floppy->num_track) {
-	      fprintf(stderr, "Disk full (%d,%d):(%d,%d)!\n",
+	      fprintf(stderr, "Corrupted disk t%ds%d > t%ds%d !\n",
 	      current_track, current_sector,
 	      floppy->num_track, floppy->tracks_sectors);
 	      exit(-3);
 	}
+	
+	sector = &floppy->tracks[current_track].sectors[current_sector-1];	
 
-        num_sectors ++;
+	int read_count = fread(buffer,1,SECTOR_USR_DATA_LENGTH,fp);
+	if(read_count==0 && num_sectors && feof(fp)) break; // empty files uses 1 sector
+	
+	// copy
+	memcpy(sector->usr.data,buffer,read_count);
+
+	// pad with '\0'
+	memset(sector->usr.data+read_count,0,SECTOR_USR_DATA_LENGTH-read_count);
+	
+	// update sector_count
+	num_sectors ++;
         bigendian_set(&sector->usr.sequence,num_sectors);
 
-        memset(sector->usr.data,0,SECTOR_USR_DATA_LENGTH);
-        int read_count = fread(sector->usr.data,1,SECTOR_USR_DATA_LENGTH,fp);
-	//printf("%d -> %d\n", num_sectors, read_count);
-        //if (read_count<SECTOR_USR_DATA_LENGTH) break; // file is 100% read
 	if (feof(fp)) break;
 
         current_track = sector->usr.next_track;
@@ -709,8 +727,6 @@ void floppy_add_file(t_floppy *floppy, char *filename) {
             fprintf(stderr,"Disk full !\n");
             exit(-3);
         }
-
-        sector = &floppy->tracks[current_track].sectors[current_sector-1];
     }
 
     fclose(fp);
@@ -792,13 +808,9 @@ int get_floppy_size(t_floppy *floppy) {
         size = floppy->track0_sectors + floppy->tracks_sectors*(floppy->num_track-1);
 
     if(floppy->squale_rom) { // round to lower power of two
-        unsigned t = size;
-        t |= t>>1;
-        t |= t>>2;
-        t |= t>>4;
-        t |= t>>8;
-        t |= t>>16;
-        t ^= t>>1;
+        unsigned t = size-2;
+        t |= t>>1; t |= t>>2; t |= t>>4; 
+	t |= t>>8; t |= t>>16; ++t;
         size = t;
     }
 
