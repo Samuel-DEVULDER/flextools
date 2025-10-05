@@ -83,7 +83,7 @@ void floppy_format(t_floppy *floppy,char *label,int number) {
     // track 0 / sector 1 = boot sector
     empty_sector(sector++);
 
-    // track 0 / sector 2 = boot sector (2)
+    // track 0 / sector 2 = 7 sector (2)
     empty_sector(sector++);
 
     // track 0 / sector 3 = System Information Record
@@ -172,7 +172,8 @@ void floppy_export(t_floppy *floppy,char *filename) {
         t_track *track = &floppy->tracks[t++];
         fwrite(&track->sectors[0],SECTOR_SIZE,1,fp);
         fwrite(&track->sectors[2],SECTOR_SIZE,1,fp);
-        fwrite(&track->sectors[4],SECTOR_SIZE,1,fp);
+	for(int i=4; i<floppy->track0_sectors; ++i)
+        fwrite(&track->sectors[i],SECTOR_SIZE,1,fp);
     }
 
     // TODO : track 0 must have the same size as other tracks
@@ -192,6 +193,11 @@ void floppy_export(t_floppy *floppy,char *filename) {
     fclose(fp);
 
 }
+
+static int allSame(uint8_t val, uint8_t *array, size_t len) {
+    while(len--) if(array[len]!=val) return 0;
+    return 1;
+}	
 
 /**
  * @brief find disk geometry
@@ -288,14 +294,13 @@ int floppy_guess_geometry(t_floppy *floppy,char *filename) {
     // t0s4 : --- missing
     // t0s5 : dir
     // t0s6 : dir
-    if (10==sector.sir.max_sector
-    && (sector.sir.max_track==26 || sector.sir.max_track==13 ||
-        sector.sir.max_track==7) // more or less hard-coded to fit rom-size
+    if (filesize==(filesize&-filesize)
+    &&  10==sector.sir.max_sector
     && sector.sir.last_user_track==sector.sir.max_track
     && sector.sir.last_user_sector==sector.sir.max_sector) {
         // squale rom-pack
         floppy->squale_rom = 1;
-        floppy->num_track = sector.sir.max_track;
+        floppy->num_track = sector.sir.max_track+1;
         floppy->tracks_sectors = sector.sir.max_sector;
     } else {
         // standard floppy : SIR
@@ -323,7 +328,11 @@ int floppy_guess_geometry(t_floppy *floppy,char *filename) {
             fprintf(stderr,"%s: Can't read sector %d (DIR).\n",filename, dir_sector);
             exit(-2);
         }
+	// dieqr
         if(sector.dir.next_sector==2 && sector.dir.next_track==1) break;
+	if(sector.dir.next_sector==0 && sector.dir.next_track==0 && 
+	   (sector.usr.sequence.digit[0] || sector.usr.sequence.digit[1] || 
+	   !allSame(0,sector.usr.data, SECTOR_USR_DATA_LENGTH))) break;
         if(sector.dir.next_sector > num_sector0) num_sector0 = sector.dir.next_sector;
         ++dir_sector;
     }
@@ -355,7 +364,7 @@ int floppy_guess_geometry(t_floppy *floppy,char *filename) {
 }
 
 /**
- * @brief read a .dsk file and put data inti the t_floppy struct.
+ * @brief read a .dsk file and put data into the t_floppy struct.
  *        the t_floppy struct memory must be already allocated.
  *
  * @param floppy
@@ -395,19 +404,18 @@ void floppy_import(t_floppy *floppy,char *filename) {
 
         // track 0 is special: onlmy 3 sectors used
         if(1!=fread(&track->sectors[0],SECTOR_SIZE,1,fp))
-                fprintf(stderr,"%s: can't read boot-sector !\n",filename);
+                fprintf(stderr,"%s: can't read BOOT sector !\n",filename);
 
         if(0>fseek(fp, SECTOR_SIZE*1, SEEK_SET)) perror(filename);
 
         if(1!=fread(&track->sectors[2],SECTOR_SIZE,1,fp))
-                fprintf(stderr,"%s: can't read sip-sector !\n",filename);
+                fprintf(stderr,"%s: can't read SIR sector !\n",filename);
 
         if(0>fseek(fp, SECTOR_SIZE*2, SEEK_SET)) perror(filename);
 
-        if(1!=fread(&track->sectors[4],SECTOR_SIZE,1,fp))
-                fprintf(stderr,"%s: can't read dir-sector !\n",filename);
-
-        if(0>fseek(fp, SECTOR_SIZE*3, SEEK_SET)) perror(filename);
+	for(int i=4; i<floppy->track0_sectors; ++i) 
+        if(1!=fread(&track->sectors[i],SECTOR_SIZE,1,fp))
+                fprintf(stderr,"%s: can't read DIR sector %d\n",filename, i+1);	
     }
 
     for (;t<floppy->num_track;t ++) {
@@ -498,12 +506,12 @@ void floppy_cat(t_floppy *floppy) {
             dir_get_filename_pretty(dir,filename);
             unsigned int file_sectors = bigendian_get(&dir->total_sector);
 
-            printf("%s\t  % 3d\t%02d/%02d/%02d%s\t%02d,%02d\n",
+            printf("%12s  %7d  %02d/%02d/%02d  %4s  %02d,%02d\n",
                     filename,
                     file_sectors,
                     dir->creation_day, dir->creation_month,dir->creation_year,
 		    dir->start_track==boot_track && 
-		    dir->start_sector==boot_sector ? "  boot"
+		    dir->start_sector==boot_sector ? "boot"
 		                                   : "",
                     dir->start_track,dir->start_sector
                     );
@@ -517,10 +525,8 @@ void floppy_cat(t_floppy *floppy) {
     }
 
     printf("---------------------------------------------\n");
-    printf("USED SECTORS\t % 3d\n",
-        num_sectors );
-
-}
+    printf("USED SECTORS  %7d\n", num_sectors);
+ }
 
 
 /**
@@ -573,7 +579,7 @@ void floppy_extract(t_floppy *floppy, char *outdir) {
                fwrite(&file_sector->usr.data,252,1,fp);
 
 
-           if ((file_sector->usr.next_track==0) && (file_sector->usr.next_sector==0)) break;
+               if ((file_sector->usr.next_track==0) && (file_sector->usr.next_sector==0)) break;
 
                 current_track = file_sector->usr.next_track;
                 current_sector = file_sector->usr.next_sector;
@@ -676,12 +682,14 @@ void floppy_add_file(t_floppy *floppy, char *filename) {
     int num_sectors=0;
     int current_sector = dir->start_sector;
     int current_track = dir->start_track;
-    sector = &floppy->tracks[current_track].sectors[current_sector-1];
+    sector = &floppy->tracks[current_track].sectors[current_sector-1];	
 
     while(!feof(fp)) {
-	if(current_sector >= floppy->tracks_sectors
+	if(current_sector > floppy->tracks_sectors
 	|| current_track  >= floppy->num_track) {
-	      fprintf(stderr,"Disk full !\n");
+	      fprintf(stderr, "Disk full (%d,%d):(%d,%d)!\n",
+	      current_track, current_sector,
+	      floppy->num_track, floppy->tracks_sectors);
 	      exit(-3);
 	}
 
@@ -690,8 +698,9 @@ void floppy_add_file(t_floppy *floppy, char *filename) {
 
         memset(sector->usr.data,0,SECTOR_USR_DATA_LENGTH);
         int read_count = fread(sector->usr.data,1,SECTOR_USR_DATA_LENGTH,fp);
-
-        if (read_count<SECTOR_USR_DATA_LENGTH) break; // file is 100% read
+	//printf("%d -> %d\n", num_sectors, read_count);
+        //if (read_count<SECTOR_USR_DATA_LENGTH) break; // file is 100% read
+	if (feof(fp)) break;
 
         current_track = sector->usr.next_track;
         current_sector = sector->usr.next_sector;
@@ -765,7 +774,7 @@ void floppy_set_boot(t_floppy *floppy, char *filename) {
 int num_sector_for_track(t_floppy *floppy,int t) {
 
         int num_sector = floppy->tracks_sectors;
-        if (t==0 && !floppy->squale_rom) num_sector = floppy->track0_sectors;
+        if (t==0) num_sector = floppy->track0_sectors;
 
         return num_sector;
 }

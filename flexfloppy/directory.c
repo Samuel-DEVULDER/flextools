@@ -16,12 +16,11 @@ void dir_get_filename(t_dir_entry *dir,char *str) {
 
 void dir_get_filename_pretty(t_dir_entry *dir,char *str) {
 
-    memset(str,' ',13);
-    *(str+13)='\0';
+    memset(str,' ',12); str[12]='\0';
 
     memcpy(str,dir->filename,8);
     for(int i=0;i<8;i++) 
-        if ( *(str+i) == '\0' ) *(str+i)=' ';
+        if ( str[i] == '\0' ) str[i] = ' ';
     strncpy(str+9,dir->ext,3);
 
 }

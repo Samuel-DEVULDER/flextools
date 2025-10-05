@@ -8,6 +8,7 @@
 t_floppy floppy;
 
 int new_flag=0;
+int newrom_flag=0;
 int cat_flag=0;
 int extract_flag=0;
 int add_flag=0;
@@ -59,6 +60,41 @@ void do_new(char *filename, int tracks, int sectors, char *label, int number) {
     printf("New disk %s created\n",filename);
 }
 
+void do_rom(char *filename, int tracks, int sectors, char *label, int number) {
+    int sector0 = sectors;
+    uint size = (sector0-2) + (tracks-1)*sectors;
+    uint t = size;
+    t |= t>>1;
+    t |= t>>2;
+    t |= t>>4;
+    t |= t>>8;
+    t |= t>>16;
+    t ^= t>>1;
+    if(size > t) {
+	sector0 = 5;
+	while((size = (sector0-2) + (tracks-1)*sectors)>t && tracks>1) --tracks;
+	if(tracks==1)  {
+		fprintf(stderr, "Can't find proper track count to fill %u bytes.\n", t*256);
+		exit(-3);
+	}
+	while(size+1<=t) ++sector0,++size;
+	printf("Reduced to t=%d s0=%d to fill %u bytes.\n", tracks, sector0, t*256);
+    }
+    floppy.track0_aligned = 0;
+    floppy.squale_rom = 1;
+    floppy.num_track = tracks;
+    floppy.track0_sectors = sector0;
+    floppy.tracks_sectors = sectors;
+    floppy.side = SINGLE_SIDE; // don't care
+    floppy.density = SINGLE_DENSITY; // don't care
+    floppy_allocate(&floppy); 
+    floppy_format(&floppy,label,number);
+    floppy_export(&floppy,filename);
+    floppy_release(&floppy);
+    printf("New rom %s created\n",filename);
+}
+
+
 void do_add(char *infile,char *filename) {
     floppy_guess_geometry(&floppy,infile); 
     floppy_import(&floppy,infile); 
@@ -93,6 +129,7 @@ int main(int argc, char *argv[]) {
         static struct option long_options[] = {
             {"cat", no_argument, 0, 'c'},
             {"new", no_argument, 0 ,'n'},
+            {"newrom", no_argument, 0 ,'r'},
             {"in", required_argument,0,'i'},
             {"out", required_argument,0,'o'},
             {"extract", required_argument,0,'e'},
@@ -108,7 +145,7 @@ int main(int argc, char *argv[]) {
 
         int option_index=0;
 
-        c = getopt_long (argc, argv, "cni:o:e:t:s:l:u:a:b:d:",
+        c = getopt_long (argc, argv, "cnri:o:e:t:s:l:u:a:b:d:",
                        long_options, &option_index);
 
         if (c==-1) break;
@@ -120,6 +157,10 @@ int main(int argc, char *argv[]) {
 
             case 'n':
                 new_flag=1;
+                break;
+
+            case 'R':
+                newrom_flag=1;
                 break;
 
             case 'i':
@@ -188,6 +229,12 @@ int main(int argc, char *argv[]) {
     // NEW
     if ( (outfile !=NULL) && (num_tracks>0) && (num_sectors>0) && new_flag ) {
         do_new(outfile,num_tracks,num_sectors,floppy_label,floppy_number);
+        return 0;
+    }
+
+    // ROM
+    if ( (outfile !=NULL) && (num_tracks>0) && (num_sectors>0) && newrom_flag ) {
+        do_rom(outfile,num_tracks,num_sectors,floppy_label,floppy_number);
         return 0;
     }
 
