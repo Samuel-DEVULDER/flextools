@@ -328,8 +328,15 @@ int floppy_guess_geometry(t_floppy *floppy,char *filename) {
         }
     }
 
+    // read first dir sector
+    int num_sector0 = 5, dir_sector = 1;
+    num_read = fread(&sector,SECTOR_SIZE,1,fp);
+    if (num_read!=1) {
+        fprintf(stderr,"%s: Can't read sector %d (DIR).\n",filename, dir_sector);
+        exit(-2);
+    }
+
     // look for first user-sector and guess sector0 length from chaining
-    int num_sector0 = 5, dir_sector = 5;
     while(!feof(fp)) {
         num_read = fread(&sector,SECTOR_SIZE,1,fp);
         if (num_read!=1) {
@@ -338,9 +345,9 @@ int floppy_guess_geometry(t_floppy *floppy,char *filename) {
         }
 	// dieqr
         if(sector.dir.next_sector==2 && sector.dir.next_track==1) break;
-	if(sector.dir.next_sector==0 && sector.dir.next_track==0 && 
-	   (sector.usr.sequence.digit[0] || sector.usr.sequence.digit[1] || 
-	   !allSame(0,sector.usr.data, SECTOR_USR_DATA_LENGTH))) break;
+	int empty_usr = !sector.usr.sequence.digit[0] && !sector.usr.sequence.digit[1] &&
+	                allSame(0,sector.usr.data, SECTOR_USR_DATA_LENGTH);
+	if(sector.dir.next_sector==0 && sector.dir.next_track==0 && empty_usr) break;
         if(sector.dir.next_sector > num_sector0) num_sector0 = sector.dir.next_sector;
         ++dir_sector;
     }
@@ -360,7 +367,7 @@ int floppy_guess_geometry(t_floppy *floppy,char *filename) {
 
         // check if the disk image has empty sectors so that all tracks
         // have the same length on file
-        if(num_sector0 < dir_sector)
+        if(num_sector0 < 4+dir_sector)
             floppy->track0_aligned=1;
     }
 
