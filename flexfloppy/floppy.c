@@ -551,12 +551,9 @@ void floppy_cat(t_floppy *floppy) {
  * @param outdir
  */
 void floppy_extract(t_floppy *floppy, char *outdir) {
+
     char filename[13];
-    char buf[OUTFILE_LEN];
-    
-    strncpy(buf,outdir,OUTFILE_LEN-15); buf[OUTFILE_LEN-15-1] = '\0';
-    char *outfile = buf + strlen(outfile);
-    if(*buf && outfile[-1]!='/'&& outfile[-1]!='\\') strcat(outfile++,"/");
+    char outfile[OUTFILE_LEN];
 
     t_sector *sector = &floppy->tracks->sectors[4];
 
@@ -572,14 +569,19 @@ void floppy_extract(t_floppy *floppy, char *outdir) {
                                               // happens on DYNSTAR.DSK
 
             dir_get_filename(dir,filename);
+
+
+            strncpy(outfile,outdir,OUTFILE_LEN-15);
+            strcat(outfile,"/");
             strcat(outfile,filename);
+
 
             t_sector *file_sector = &(floppy->tracks[dir->start_track].sectors[dir->start_sector-1]);
 
             printf("Extract %s ", outfile);
 
-            FILE *fp = fopen(outfile,"wb");
-	    if(fp == NULL) {perror(outfile); continue;}
+            FILE *fp;
+            fp = fopen(outfile,"wb");
 
             unsigned char current_track = dir->start_track;
             unsigned char current_sector = dir->start_sector;
@@ -629,20 +631,6 @@ void floppy_extract(t_floppy *floppy, char *outdir) {
 }
 
 /**
- * @brief extracts the basename of the file
- *
-* @param filename
- */
-static char *basename(char *filename) {
-    char *name = strrchr(filename,'/');
-    
-    if (name == NULL) name = strrchr(filename,'\\');
-    
-    return name == NULL ? filename : name+1;
-}
-
-
-/**
  * @brief add the file 'filename' from the host system to the t_floppy struct
  *
  * @param floppy
@@ -656,7 +644,11 @@ void floppy_add_file(t_floppy *floppy, char *filename) {
     t_dir_entry *dir;
 
     // get rid of path
-    char *base_filename = basename(filename);
+    char *base_filename = strrchr(filename,'/');
+    if (base_filename==NULL)
+        base_filename=filename;
+    else
+        base_filename++;
 
     // check if the directory already exists
     dir = find_file(floppy,base_filename);
@@ -751,18 +743,19 @@ void floppy_add_file(t_floppy *floppy, char *filename) {
     dir->end_sector = current_sector;
     bigendian_set(&dir->total_sector,num_sectors);
 
-    // update total sectors
-    int total_sector = bigendian_get(&sir->sir.total_sector);
-    total_sector -=num_sectors; if(total_sector<0) total_sector = 0; // TODO warning ?
-    bigendian_set(&sir->sir.total_sector,total_sector);
-
     // update SIR free list with next available sector
-    sir->sir.first_user_track = total_sector ? sector->usr.next_track : 0;
-    sir->sir.first_user_sector = total_sector ? sector->usr.next_sector : 0;
+    // TODO : check if this was the last available sector ?
+    sir->sir.first_user_track = sector->usr.next_track;
+    sir->sir.first_user_sector = sector->usr.next_sector;
 
     // update last file sector pointers
     sector->usr.next_track=0;
     sector->usr.next_sector=0;
+
+    // update total sectors
+    int total_sector = bigendian_get(&sir->sir.total_sector);
+    total_sector -=num_sectors;
+    bigendian_set(&sir->sir.total_sector,total_sector);
 
     char local_filename[13];
     dir_get_filename(dir,local_filename);
@@ -770,50 +763,6 @@ void floppy_add_file(t_floppy *floppy, char *filename) {
         local_filename, total_sector);
 
 }
-
-/**
- * @brief add the file 'filename' from the host system to the t_floppy struct
- *
- * @param floppy
- * @param filename
- */
-void floppy_del_file(t_floppy *floppy, char *filename) {
-
-    t_sector *sir = &floppy->tracks->sectors[2];
-
-    // get rid of path
-    char *base_filename = basename(filename);
-
-    // check if the directory already exists
-    t_dir_entry *dir = find_file(floppy,base_filename);
-    if (dir == NULL) {
-        fprintf(stderr,"%s not found !\n", base_filename);
-        return; // not really an error
-    }
-
-    // link sectors to free list
-    t_sector *sector = &floppy->tracks[dir->end_track].sectors[dir->end_sector-1];
-    if(sector->usr.next_track || sector->usr.next_sector) {
-        fprintf(stderr, "Corrupted dir entry \"%s\".\n", base_filename);
-	exit(-3);
-    }
-    sector->usr.next_track     = sir->sir.first_user_track;
-    sector->usr.next_sector    = sir->sir.first_user_sector;
-    sir->sir.first_user_track  = dir->end_track;
-    sir->sir.first_user_sector = dir->end_sector; 
-    
-    // update free sector count
-    int total_sector = bigendian_get(&sir->sir.total_sector);
-    total_sector += bigendian_get(&dir->total_sector);
-    bigendian_set(&sir->sir.total_sector,total_sector);
- 
-    // clear dir entry
-    dir->filename[0] = 0xFF; 
-
-    printf("%s deleted. %d sectors free.\n", base_filename, total_sector);
-
-}
-
 
 /**
  * @brief set track into 6th byte of sector0/track0 and sector

@@ -41,7 +41,6 @@ void floppy_info(t_floppy *floppy);
 void floppy_cat(t_floppy *floppy);
 
 void floppy_add_file(t_floppy *floppy, char *filename);
-void floppy_del_file(t_floppy *floppy, char *filename);
 
 void floppy_extract(t_floppy *floppy, char *outdir);
 
