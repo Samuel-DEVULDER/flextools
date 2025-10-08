@@ -799,8 +799,8 @@ void floppy_del_file(t_floppy *floppy, char *filename) {
     }
     sector->usr.next_track     = sir->sir.first_user_track;
     sector->usr.next_sector    = sir->sir.first_user_sector;
-    sir->sir.first_user_track  = dir->end_track;
-    sir->sir.first_user_sector = dir->end_sector; 
+    sir->sir.first_user_track  = dir->start_track;
+    sir->sir.first_user_sector = dir->start_sector; 
     
     // update free sector count
     int total_sector = bigendian_get(&sir->sir.total_sector);

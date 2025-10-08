@@ -25,8 +25,9 @@ void usage() {
     printf("Usage:\n");
     printf("flexfloppy --in <disk.dsk> --cat\n"); 
     printf("flexfloppy --in <disk.dsk> --extract <path>\n");
-    printf("flexfloppy --new --tracks <num_tracks> --sectors <num_sectors> [--label <label>] [--number <number>] --out <disk.dsk> [--rom]\n");
+    printf("flexfloppy --new --tracks <num_tracks> --sectors <num_sectors> [--label <label>] [--number <number>] --out <disk.dsk> [--rompack]\n");
     printf("flexfloppy --in <disk.dsk> --add <filename>\n");
+    printf("flexfloppy --in <disk.dsk> --del <filename>\n");
     printf("flexfloppy --in <disk.dsk> --bootsector <filename>\n");
     printf("flexfloppy --in <disk.dsk> --setboot <filename>\n");
     exit(-1);
@@ -77,7 +78,7 @@ void do_newrom(char *filename, int tracks, int sectors, char *label, int number)
     floppy_format(&floppy,label,number);
     floppy_export(&floppy,filename);
     floppy_release(&floppy);
-    printf("New rom %s created (%u / %u bytes)\n",filename, size*256, t*256);
+    printf("New rompack %s created (%u / %u bytes)\n",filename, size*256, t*256);
 }
 
 void do_add(char *infile,char *filename) {
