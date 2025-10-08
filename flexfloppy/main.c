@@ -12,6 +12,7 @@ int rom_flag=0;
 int cat_flag=0;
 int extract_flag=0;
 int add_flag=0;
+int del_flag=0;
 int bootsector_flag=0;
 int setboot_flag=0;
 
@@ -79,11 +80,18 @@ void do_newrom(char *filename, int tracks, int sectors, char *label, int number)
     printf("New rom %s created (%u / %u bytes)\n",filename, size*256, t*256);
 }
 
-
 void do_add(char *infile,char *filename) {
     floppy_guess_geometry(&floppy,infile); 
     floppy_import(&floppy,infile); 
     floppy_add_file(&floppy,filename);
+    floppy_export(&floppy,infile);
+    floppy_release(&floppy);
+}
+
+void do_del(char *infile,char *filename) {
+    floppy_guess_geometry(&floppy,infile); 
+    floppy_import(&floppy,infile); 
+    floppy_del_file(&floppy,filename);
     floppy_export(&floppy,infile);
     floppy_release(&floppy);
 }
@@ -114,7 +122,7 @@ int main(int argc, char *argv[]) {
         static struct option long_options[] = {
             {"cat", no_argument, 0, 'c'},
             {"new", no_argument, 0 ,'n'},
-            {"rom", no_argument, 0 ,'r'},
+            {"rompack", no_argument, 0 ,'p'},
             {"in", required_argument,0,'i'},
             {"out", required_argument,0,'o'},
             {"extract", required_argument,0,'e'},
@@ -123,14 +131,15 @@ int main(int argc, char *argv[]) {
             {"label", required_argument,0,'l'},
             {"number", required_argument,0,'u'},
             {"add", required_argument,0,'a'},
+            {"del", required_argument,0,'d'},
             {"bootsector", required_argument,0,'b'},
-            {"setboot", required_argument,0,'d'},
+            {"setboot", required_argument,0,'z'},
             {0,0,0,0}
         };
 
         int option_index=0;
 
-        c = getopt_long (argc, argv, "cnri:o:e:t:s:l:u:a:b:d:",
+        c = getopt_long (argc, argv, "cnpi:o:e:t:s:l:u:a:d:b:z:",
                        long_options, &option_index);
 
         if (c==-1) break;
@@ -144,7 +153,7 @@ int main(int argc, char *argv[]) {
                 new_flag=1;
                 break;
 
-            case 'r':
+            case 'p':
                 rom_flag=1;
                 break;
 
@@ -183,12 +192,17 @@ int main(int argc, char *argv[]) {
                 filename = optarg;
                 break;
 
+            case 'd':
+                del_flag = 1;
+                filename = optarg;
+                break;
+
             case 'b':
                 bootsector_flag = 1;
                 filename = optarg;
                 break;
 
-            case 'd':
+            case 'z':
                 setboot_flag = 1;
                 filename = optarg;
                 break;
@@ -197,12 +211,6 @@ int main(int argc, char *argv[]) {
                 usage();
         }
 
-    }
-
-    // CAT
-    if ( (infile!=NULL) && cat_flag) {
-        do_cat(infile);
-        return 0;
     }
 
     // EXTRACT
@@ -217,12 +225,21 @@ int main(int argc, char *argv[]) {
         do_newrom(outfile,num_tracks,num_sectors,floppy_label,floppy_number);
 	else
         do_new(outfile,num_tracks,num_sectors,floppy_label,floppy_number);
+	if(cat_flag) do_cat(infile);
         return 0;
     }
 
     // ADD
     if ( (infile != NULL) && (filename !=NULL) && add_flag) {
         do_add(infile,filename);
+	if(cat_flag) do_cat(infile);
+        return 0;
+    }
+
+    // DEL
+    if ( (infile != NULL) && (filename !=NULL) && del_flag) {
+        do_del(infile,filename);
+	if(cat_flag) do_cat(infile);
         return 0;
     }
 
@@ -235,9 +252,15 @@ int main(int argc, char *argv[]) {
     // SET BOOT
     if ( (infile != NULL) && (filename !=NULL) && setboot_flag) {
         do_setboot(infile,filename);
+	if(cat_flag) do_cat(infile);
         return 0;
     }
 
+    // CAT
+    if ( (infile!=NULL) && cat_flag) {
+        do_cat(infile);
+        return 0;
+    }
 
     usage();
    
