@@ -814,6 +814,46 @@ void floppy_del_file(t_floppy *floppy, char *filename) {
 
 }
 
+/**
+ * @brief renames a file
+ *
+ * @param floppy
+ * @param oldname
+ * @param newname
+ */
+void floppy_ren_file(t_floppy *floppy, char *oldname, char *newname) {
+
+    t_sector *sir = &floppy->tracks->sectors[2];
+
+    // get rid of path
+    oldname = basename(oldname);
+    newname = basename(newname);
+
+    // check that the new name does not exits
+    t_dir_entry *dir = find_file(floppy,newname);
+    if (dir != NULL) {
+        fprintf(stderr,"%s already exists !\n", newname);
+        exit(-1);
+    }
+    
+    // check the old name exists
+    dir = find_file(floppy,oldname);
+    if(dir == NULL) {
+        fprintf(stderr,"%s not found !\n", oldname);
+        return; // not really an error
+    }
+
+    int success = dir_set_filename(dir,newname);
+    if (!success) {
+        fprintf(stderr,"Cannot set filename %s\n",newname);
+        exit(-3);
+    }
+
+    char local_filename[13];
+    dir_get_filename(dir,local_filename);
+    printf("%s renamed as %s.", oldname,local_filename);
+
+}
 
 /**
  * @brief set track into 6th byte of sector0/track0 and sector

@@ -13,21 +13,24 @@ int cat_flag=0;
 int extract_flag=0;
 int add_flag=0;
 int del_flag=0;
+int ren_flag=0;
 int bootsector_flag=0;
 int setboot_flag=0;
 
 char *infile=NULL,*outfile=NULL,*path=NULL, *filename=NULL;
+char *oldname=NULL, *newname=NULL;
 char floppy_label[12];
 int floppy_number=0;
-int num_tracks=0,num_sectors=0;
+int num_tracks=0,num_sectors=10;
 
 void usage() {
     printf("Usage:\n");
     printf("flexfloppy --in <disk.dsk> --cat\n"); 
     printf("flexfloppy --in <disk.dsk> --extract <path>\n");
-    printf("flexfloppy --new --tracks <num_tracks> --sectors <num_sectors> [--label <label>] [--number <number>] --out <disk.dsk> [--rompack]\n");
+    printf("flexfloppy --new --tracks <num_tracks> [--sectors <num_sectors>] [--label <label>] [--number <number>] --out <disk.dsk> [--rompack]\n");
     printf("flexfloppy --in <disk.dsk> --add <filename>\n");
     printf("flexfloppy --in <disk.dsk> --del <filename>\n");
+    printf("flexfloppy --in <disk.dsk> --ren <oldname> --as <newname>\n");
     printf("flexfloppy --in <disk.dsk> --bootsector <filename>\n");
     printf("flexfloppy --in <disk.dsk> --setboot <filename>\n");
     exit(-1);
@@ -97,6 +100,14 @@ void do_del(char *infile,char *filename) {
     floppy_release(&floppy);
 }
 
+void do_ren(char *infile,char *oldname,char *newname) {
+    floppy_guess_geometry(&floppy,infile); 
+    floppy_import(&floppy,infile); 
+    floppy_ren_file(&floppy,oldname,newname);
+    floppy_export(&floppy,infile);
+    floppy_release(&floppy);
+}
+
 void do_bootsector(char *infile,char *filename) {
     floppy_guess_geometry(&floppy,infile); 
     floppy_import(&floppy,infile); 
@@ -126,13 +137,15 @@ int main(int argc, char *argv[]) {
             {"rompack", no_argument, 0 ,'p'},
             {"in", required_argument,0,'i'},
             {"out", required_argument,0,'o'},
-            {"extract", required_argument,0,'e'},
+            {"extract", required_argument,0,'x'},
             {"tracks", required_argument,0,'t'},
             {"sectors", required_argument,0,'s'},
             {"label", required_argument,0,'l'},
             {"number", required_argument,0,'u'},
             {"add", required_argument,0,'a'},
             {"del", required_argument,0,'d'},
+            {"ren", required_argument,0,'M'},
+            {"as", required_argument,0,'V'},
             {"bootsector", required_argument,0,'b'},
             {"setboot", required_argument,0,'z'},
             {0,0,0,0}
@@ -140,7 +153,7 @@ int main(int argc, char *argv[]) {
 
         int option_index=0;
 
-        c = getopt_long (argc, argv, "cnpi:o:e:t:s:l:u:a:d:b:z:",
+        c = getopt_long (argc, argv, "cnpi:o:x:t:s:l:u:a:d:M:V:b:z:",
                        long_options, &option_index);
 
         if (c==-1) break;
@@ -166,7 +179,7 @@ int main(int argc, char *argv[]) {
                 outfile=optarg;
                 break;
 
-            case 'e':
+            case 'x':
                 path=optarg;
                 extract_flag=1;
                 break;
@@ -198,6 +211,16 @@ int main(int argc, char *argv[]) {
                 filename = optarg;
                 break;
 
+            case 'M':
+                ren_flag = 1;
+                oldname = optarg;
+                break;
+
+            case 'V':
+                ren_flag = 1;
+                newname = optarg;
+                break;
+
             case 'b':
                 bootsector_flag = 1;
                 filename = optarg;
@@ -222,36 +245,43 @@ int main(int argc, char *argv[]) {
 
     // NEW
     if ( (outfile !=NULL) && (num_tracks>0) && (num_sectors>0) && new_flag ) {
-	if(rom_flag)
-        do_newrom(outfile,num_tracks,num_sectors,floppy_label,floppy_number);
-	else
-        do_new(outfile,num_tracks,num_sectors,floppy_label,floppy_number);
+	if(rom_flag) do_newrom(outfile,num_tracks,num_sectors,
+	                       floppy_label,floppy_number);
+	else         do_new(outfile,num_tracks,num_sectors,
+	                    floppy_label,floppy_number);
 	if(cat_flag) do_cat(infile);
         return 0;
     }
 
     // ADD
-    if ( (infile != NULL) && (filename !=NULL) && add_flag) {
+    if ( (infile!=NULL) && (filename!=NULL) && add_flag) {
         do_add(infile,filename);
 	if(cat_flag) do_cat(infile);
         return 0;
     }
 
     // DEL
-    if ( (infile != NULL) && (filename !=NULL) && del_flag) {
+    if ( (infile!=NULL) && (filename!=NULL) && del_flag) {
         do_del(infile,filename);
 	if(cat_flag) do_cat(infile);
         return 0;
     }
 
+    // REN
+    if ( (infile!=NULL) && (oldname!=NULL) && (newname!=NULL) && ren_flag) {
+        do_ren(infile,oldname,newname);
+	if(cat_flag) do_cat(infile);
+        return 0;
+    }
+
     // BOOT SECTOR
-    if ( (infile != NULL) && (filename !=NULL) && bootsector_flag) {
+    if ( (infile!=NULL) && (filename!=NULL) && bootsector_flag) {
         do_bootsector(infile,filename);
         return 0;
     }
 
     // SET BOOT
-    if ( (infile != NULL) && (filename !=NULL) && setboot_flag) {
+    if ( (infile!=NULL) && (filename!=NULL) && setboot_flag) {
         do_setboot(infile,filename);
 	if(cat_flag) do_cat(infile);
         return 0;
