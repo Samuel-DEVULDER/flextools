@@ -27,7 +27,7 @@ void usage() {
     printf("Usage:\n");
     printf("flexfloppy --in <disk.dsk> --cat\n"); 
     printf("flexfloppy --in <disk.dsk> --extract <path>\n");
-    printf("flexfloppy --new --tracks <num_tracks> [--sectors <num_sectors>] [--label <label>] [--number <number>] --out <disk.dsk> [--rompack]\n");
+    printf("flexfloppy --new --tracks <num_tracks> [--sectors <num_sectors>] [--label <label>] [--number <number>] [--rompack] --out <disk.dsk>\n");
     printf("flexfloppy --in <disk.dsk> --add <filename>\n");
     printf("flexfloppy --in <disk.dsk> --del <filename>\n");
     printf("flexfloppy --in <disk.dsk> --ren <oldname> --as <newname>\n");
