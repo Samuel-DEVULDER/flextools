@@ -553,9 +553,10 @@ void floppy_cat(t_floppy *floppy) {
 void floppy_extract(t_floppy *floppy, char *outdir) {
     char filename[13];
     char buf[OUTFILE_LEN];
+    int max_sectors = get_floppy_size(floppy)/SECTOR_SIZE;
     
     strncpy(buf,outdir,OUTFILE_LEN-15); buf[OUTFILE_LEN-15-1] = '\0';
-    char *outfile = buf + strlen(outfile);
+    char *outfile = buf + strlen(buf);
     if(*buf && outfile[-1]!='/'&& outfile[-1]!='\\') strcat(outfile++,"/");
 
     t_sector *sector = &floppy->tracks->sectors[4];
@@ -572,13 +573,13 @@ void floppy_extract(t_floppy *floppy, char *outdir) {
                                               // happens on DYNSTAR.DSK
 
             dir_get_filename(dir,filename);
-            strcat(outfile,filename);
+            strcpy(outfile,filename);
 
             t_sector *file_sector = &(floppy->tracks[dir->start_track].sectors[dir->start_sector-1]);
 
-            printf("Extract %s ", outfile);
+            printf("Extract %-12s ", outfile); fflush(stdout);
 
-            FILE *fp = fopen(outfile,"wb");
+            FILE *fp = fopen(buf,"wb");
 	    if(fp == NULL) {perror(outfile); continue;}
 
             unsigned char current_track = dir->start_track;
@@ -588,14 +589,18 @@ void floppy_extract(t_floppy *floppy, char *outdir) {
 
             for(;;) {
 
-                total_sector ++;
+                total_sector ++; 
                fwrite(&file_sector->usr.data,252,1,fp);
-
 
                if ((file_sector->usr.next_track==0) && (file_sector->usr.next_sector==0)) break;
 
                 current_track = file_sector->usr.next_track;
                 current_sector = file_sector->usr.next_sector;
+		//printf("%d %d\n", current_track, current_sector);fflush(stdout);
+		
+		if(current_track<=0  || current_track>floppy->num_track) break;
+		if(current_sector<=0 || current_sector>floppy->tracks_sectors) break;
+		if(total_sector==max_sectors) break;
                 file_sector = &(floppy->tracks[current_track].sectors[current_sector-1]);
             }
 
@@ -621,7 +626,6 @@ void floppy_extract(t_floppy *floppy, char *outdir) {
 
 
         }
-
         if (!sector->dir.next_sector) break;
         sector = &floppy->tracks->sectors[sector->dir.next_sector - 1] ;
     }
@@ -808,7 +812,7 @@ void floppy_del_file(t_floppy *floppy, char *filename) {
     bigendian_set(&sir->sir.total_sector,total_sector);
  
     // clear dir entry
-    dir->filename[0] = 0xFF; 
+    dir->filename[0] = (char)0xFF; 
 
     printf("%s deleted. %d sectors free.\n", base_filename, total_sector);
 
@@ -822,8 +826,6 @@ void floppy_del_file(t_floppy *floppy, char *filename) {
  * @param newname
  */
 void floppy_ren_file(t_floppy *floppy, char *oldname, char *newname) {
-
-    t_sector *sir = &floppy->tracks->sectors[2];
 
     // get rid of path
     oldname = basename(oldname);
