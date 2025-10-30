@@ -67,8 +67,8 @@ void do_new(char *filename, int tracks, int sectors, char *label, int number) {
 
 void do_newrom(char *filename, int tracks, int sectors, char *label, int number) {
     int sector0 = 5; // no more for squaleboot
-    uint size = (sector0-2) + (tracks-1)*sectors;
-    uint t = size;
+    unsigned int size = (sector0-2) + (tracks-1)*sectors;
+    unsigned int t = size;
     t |= t>>1; t |= t>>2; t |= t>>4; t |= t>>8; t |= t>>16; ++t;
     floppy.track0_aligned = 0;
     floppy.squale_rom = 1;
